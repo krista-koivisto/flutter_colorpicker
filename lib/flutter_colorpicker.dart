@@ -2,6 +2,7 @@
 
 library flutter_colorpicker;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import 'package:flutter_colorpicker/hsv_picker.dart';
@@ -12,24 +13,30 @@ class ColorPicker extends StatefulWidget {
   const ColorPicker({
     @required this.pickerColor,
     @required this.onColorChanged,
+    this.onFinished,
     this.paletteType: PaletteType.hsv,
     this.enableAlpha: true,
     this.enableLabel: true,
     this.displayThumbColor: false,
+    this.displayColorIndicator: true,
     this.colorPickerWidth: 300.0,
     this.pickerAreaHeightPercent: 1.0,
     this.pickerAreaBorderRadius: const BorderRadius.all(Radius.zero),
+    this.dragStartBehavior = DragStartBehavior.start,
   }) : assert(pickerAreaBorderRadius != null);
 
   final Color pickerColor;
   final ValueChanged<Color> onColorChanged;
+  final ValueChanged<Color> onFinished;
   final PaletteType paletteType;
   final bool enableAlpha;
   final bool enableLabel;
   final bool displayThumbColor;
+  final bool displayColorIndicator;
   final double colorPickerWidth;
   final double pickerAreaHeightPercent;
   final BorderRadius pickerAreaBorderRadius;
+  final DragStartBehavior dragStartBehavior;
 
   @override
   _ColorPickerState createState() => _ColorPickerState();
@@ -58,6 +65,9 @@ class _ColorPickerState extends State<ColorPicker> {
         setState(() => currentHsvColor = color);
         widget.onColorChanged(currentHsvColor.toColor());
       },
+      (HSVColor color) {
+        widget.onFinished(currentHsvColor.toColor());
+      },
       displayThumbColor: widget.displayThumbColor,
     );
   }
@@ -69,6 +79,9 @@ class _ColorPickerState extends State<ColorPicker> {
           (HSVColor color) {
             setState(() => currentHsvColor = color);
             widget.onColorChanged(currentHsvColor.toColor());
+          },
+          (HSVColor color) {
+            widget.onFinished(currentHsvColor.toColor());
           },
           widget.paletteType,
         ),
@@ -89,7 +102,7 @@ class _ColorPickerState extends State<ColorPicker> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
-                ColorIndicator(currentHsvColor),
+                if (widget.displayColorIndicator) ColorIndicator(currentHsvColor),
                 Expanded(
                   child: Column(
                     children: <Widget>[
@@ -129,7 +142,7 @@ class _ColorPickerState extends State<ColorPicker> {
               Row(
                 children: <Widget>[
                   SizedBox(width: 20.0),
-                  ColorIndicator(currentHsvColor),
+                  if (widget.displayColorIndicator) ColorIndicator(currentHsvColor),
                   Column(
                     children: <Widget>[
                       SizedBox(

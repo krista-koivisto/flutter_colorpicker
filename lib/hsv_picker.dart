@@ -1,5 +1,8 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/utils.dart';
+
+import 'custom_gesture_detector.dart';
 
 enum PaletteType { hsv, hsl }
 enum TrackType { hue, saturation, value, lightness, alpha }
@@ -379,14 +382,18 @@ class ColorPickerSlider extends StatelessWidget {
   const ColorPickerSlider(
     this.trackType,
     this.hsvColor,
-    this.onColorChanged, {
+    this.onColorChanged,
+    this.onFinished, {
     this.displayThumbColor = false,
+    this.dragStartBehavior = DragStartBehavior.start,
   });
 
   final TrackType trackType;
   final HSVColor hsvColor;
   final ValueChanged<HSVColor> onColorChanged;
+  final ValueChanged<HSVColor> onFinished;
   final bool displayThumbColor;
+  final DragStartBehavior dragStartBehavior;
 
   @override
   Widget build(BuildContext context) {
@@ -396,6 +403,19 @@ class ColorPickerSlider extends StatelessWidget {
                   ? hsvColor.hue / 360
                   : hsvColor.toColor().opacity) +
           15.0;
+
+      void _handleColorChange(double localDx) {
+        if (trackType == TrackType.hue) {
+          onColorChanged(hsvColor.withHue(
+              localDx.clamp(0.0, box.maxWidth - 30.0) /
+                  (box.maxWidth - 30.0) *
+                  360));
+        } else if (trackType == TrackType.alpha) {
+          onColorChanged(hsvColor.withAlpha(
+              localDx.clamp(0.0, box.maxWidth - 30.0) /
+                  (box.maxWidth - 30.0)));
+        }
+      }
 
       return CustomMultiChildLayout(
         delegate: _SliderLayout(),
@@ -427,20 +447,26 @@ class ColorPickerSlider extends StatelessWidget {
             id: _SliderLayout.gestureContainer,
             child: LayoutBuilder(
               builder: (BuildContext context, BoxConstraints box) {
-                return GestureDetector(
+                RenderBox getBox = context.findRenderObject();
+                return CustomGestureDetector(
+                  panTolerance: 0.0,
+                  dragStartBehavior: dragStartBehavior,
                   onPanUpdate: (DragUpdateDetails details) {
-                    RenderBox getBox = context.findRenderObject();
-                    double localDx =
-                        getBox.globalToLocal(details.globalPosition).dx - 15.0;
-                    if (trackType == TrackType.hue) {
-                      onColorChanged(hsvColor.withHue(
-                          localDx.clamp(0.0, box.maxWidth - 30.0) /
-                              (box.maxWidth - 30.0) *
-                              360));
-                    } else if (trackType == TrackType.alpha) {
-                      onColorChanged(hsvColor.withAlpha(
-                          localDx.clamp(0.0, box.maxWidth - 30.0) /
-                              (box.maxWidth - 30.0)));
+                    _handleColorChange(
+                      getBox.globalToLocal(details.globalPosition).dx - 15.0);
+                  },
+                  onPanEnd: (DragEndDetails details) {
+                    if (onFinished != null) {
+                      onFinished(hsvColor);
+                    }
+                  },
+                  onTapDown: (TapDownDetails details) {
+                    _handleColorChange(
+                      getBox.globalToLocal(details.globalPosition).dx - 15.0);
+                  },
+                  onTapUp: (TapUpDetails details) {
+                    if (onFinished != null) {
+                      onFinished(hsvColor);
                     }
                   },
                   child: Container(color: Colors.transparent),
@@ -486,14 +512,23 @@ class ColorPickerArea extends StatelessWidget {
   const ColorPickerArea(
     this.hsvColor,
     this.onColorChanged,
-    this.paletteType,
-  );
+    this.onFinished,
+    this.paletteType, {
+    this.dragStartBehavior = DragStartBehavior.start,
+  });
 
   final HSVColor hsvColor;
   final ValueChanged<HSVColor> onColorChanged;
+  final ValueChanged<HSVColor> onFinished;
   final PaletteType paletteType;
+  final DragStartBehavior dragStartBehavior;
 
-  void _handleColorChange(double horizontal, double vertical) {
+  void _handleColorChange(BuildContext context, BoxConstraints constraints,
+      Offset localOffset) {
+    double width = constraints.maxWidth;
+    double height = constraints.maxHeight;
+    double horizontal = localOffset.dx.clamp(0.0, width) / width;
+    double vertical = 1 - localOffset.dy.clamp(0.0, height) / height;
     switch (paletteType) {
       case PaletteType.hsv:
         onColorChanged(hsvColor.withSaturation(horizontal).withValue(vertical));
@@ -510,23 +545,27 @@ class ColorPickerArea extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (BuildContext context, BoxConstraints constraints) {
-        double width = constraints.maxWidth;
-        double height = constraints.maxHeight;
-
-        return GestureDetector(
+        RenderBox getBox = context.findRenderObject();
+        return CustomGestureDetector(
+          panTolerance: 0.0,
+          dragStartBehavior: dragStartBehavior,
           onPanDown: (DragDownDetails details) {
-            RenderBox getBox = context.findRenderObject();
             Offset localOffset = getBox.globalToLocal(details.globalPosition);
-            double horizontal = localOffset.dx.clamp(0.0, width) / width;
-            double vertical = 1 - localOffset.dy.clamp(0.0, height) / height;
-            _handleColorChange(horizontal, vertical);
+            _handleColorChange(context, constraints, localOffset);
           },
           onPanUpdate: (DragUpdateDetails details) {
-            RenderBox getBox = context.findRenderObject();
             Offset localOffset = getBox.globalToLocal(details.globalPosition);
-            double horizontal = localOffset.dx.clamp(0.0, width) / width;
-            double vertical = 1 - localOffset.dy.clamp(0.0, height) / height;
-            _handleColorChange(horizontal, vertical);
+            _handleColorChange(context, constraints, localOffset);
+          },
+          onPanEnd: (DragEndDetails details) {
+            if (onFinished != null) {
+              onFinished(hsvColor);
+            }
+          },
+          onTapUp: (TapUpDetails details) {
+            if (onFinished != null) {
+              onFinished(hsvColor);
+            }
           },
           child: Builder(
             builder: (BuildContext _) {
